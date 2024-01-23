@@ -1,0 +1,58 @@
+[3:45 PM] Bhanuprasad Kummari
+#!/bin/bash
+ 
+# Set AWS Region and instance details
+
+AWS_REGION="us-east-1"
+
+INSTANCE_TYPE="t2.micro"
+
+AMI_ID="ami-xxxxxxxxxxxxxxxxx"  # Replace with your actual AMI ID
+
+KEY_NAME="your-key-pair-name"   # Replace with your desired key pair name
+
+SECURITY_GROUP_NAME="your-security-group"  # Replace with your desired security group name
+
+INSTANCE_NAME="YourInstanceName"  # Replace with your desired instance name
+ 
+# Create Key Pair
+
+echo "Creating Key Pair..."
+
+aws ec2 create-key-pair --key-name $KEY_NAME --query 'KeyMaterial' --output text > $KEY_NAME.pem
+
+chmod 400 $KEY_NAME.pem
+
+echo "Key Pair created: $KEY_NAME.pem"
+ 
+# Create Security Group
+
+echo "Creating Security Group..."
+
+SECURITY_GROUP_ID=$(aws ec2 create-security-group --group-name $SECURITY_GROUP_NAME --description "Security Group for EC2 instance" --vpc-id $(aws ec2 describe-vpcs --query 'Vpcs[0].VpcId' --output text) --output text --query 'GroupId')
+
+echo "Security Group created: $SECURITY_GROUP_ID"
+ 
+# Allow SSH Inbound Traffic to Security Group
+
+aws ec2 authorize-security-group-ingress --group-id $SECURITY_GROUP_ID --protocol tcp --port 22 --cidr 0.0.0.0/0
+
+echo "Inbound SSH traffic allowed to Security Group"
+ 
+# Create EC2 Instance
+
+echo "Creating EC2 Instance..."
+
+INSTANCE_ID=$(aws ec2 run-instances --image-id $AMI_ID --instance-type $INSTANCE_TYPE --key-name $KEY_NAME --security-group-ids $SECURITY_GROUP_ID --tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value='$INSTANCE_NAME'}]' --output text --query 'Instances[0].InstanceId')
+
+echo "EC2 Instance created: $INSTANCE_ID"
+ 
+# Wait for the instance to be running
+
+aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+ 
+# Get the public IP address of the newly created instance
+
+PUBLIC_IP=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+
+echo "Instance $INSTANCE_NAME is now running with Public IP: $PUBLIC_IP"
